@@ -100,6 +100,7 @@ rand = { workspace = true }
 reqwest = { workspace = true, features = ["rustls-tls-no-provider"] }
 ring = "0.17.14"
 ringbuffer = "0.16.0"
+rolling-file = "0.2.0"
 rustls = { workspace = true }
 rustls-pemfile = "2.2.0"
 send_wrapper = "0.6.0"
