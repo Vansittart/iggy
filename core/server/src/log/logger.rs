@@ -634,3 +634,59 @@ impl<'writer> FormatFields<'writer> for NoAnsiFields {
         a.finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_log_directory_creation() {
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+        let base_path = temp_dir.path().to_str().unwrap().to_string();
+        let log_subdir = "test_logs".to_string();
+
+        let log_path = PathBuf::from(&base_path).join(&log_subdir);
+        assert!(!log_path.exists());
+        std::fs::create_dir_all(&log_path).expect("Failed to create log directory");
+        assert!(log_path.exists());
+    }
+
+    #[test]
+    fn test_disk_space_check() {
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+        let log_path = temp_dir.path();
+        let result = fs2::available_space(log_path);
+        assert!(result.is_ok());
+
+        let available_space = result.unwrap();
+        assert!(available_space > 0);
+    }
+
+    #[test]
+    fn test_calculate_max_files() {
+        assert_eq!(Logging::calculate_max_files(0, 100), 1);
+        assert_eq!(Logging::calculate_max_files(100, 0), 10);
+        assert_eq!(Logging::calculate_max_files(1000, 100), 10);
+        assert_eq!(Logging::calculate_max_files(500, 100), 5);
+        assert_eq!(Logging::calculate_max_files(2000, 100), 20);
+        assert_eq!(Logging::calculate_max_files(1000000, 1), 1000);
+        assert_eq!(Logging::calculate_max_files(50, 100), 1);
+    }
+
+    #[test]
+    fn test_cleanup_log_files_functions() {
+        use std::time::Duration;
+        let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+        let log_path = temp_dir.path().to_path_buf();
+        Logging::cleanup_log_files(&log_path, Duration::from_secs(3600), 1024 * 1024);
+    }
+
+    #[test]
+    fn test_logging_creation() {
+        let logging = Logging::new();
+        assert!(logging.stdout_guard.is_none());
+        assert!(logging.file_guard.is_none());
+        assert!(logging.env_filter_reload_handle.is_none());
+    }
+}
