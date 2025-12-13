@@ -255,6 +255,29 @@ impl Logging {
             let base_directory = PathBuf::from(base_directory);
             let logs_subdirectory = PathBuf::from(config.path.clone());
             let logs_path = base_directory.join(logs_subdirectory.clone());
+
+            if let Err(e) = std::fs::create_dir_all(&logs_path) {
+                tracing::warn!("Failed to create logs directory {:?}: {}", logs_path, e);
+                return Err(LogError::FileReloadFailure);
+            }
+
+            // Check available disk space (at least 10MB)
+            let min_disk_space: u64 = 10 * 1024 * 1024; // 10MB
+            if let Ok(available_space) = fs2::available_space(&logs_path) {
+                if available_space < min_disk_space {
+                    tracing::warn!(
+                        "Low disk space for logs. Available: {} bytes, Recommended: {} bytes",
+                        available_space,
+                        min_disk_space
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    "Failed to check available disk space for logs directory: {:?}",
+                    logs_path
+                );
+            }
+
             let max_files = Self::calculate_max_files(
                 config.max_size.as_bytes_u64(),
                 config.max_size.as_bytes_u64(),
@@ -269,7 +292,11 @@ impl Logging {
                 condition,
                 max_files,
             )
-            .map_err(|_| LogError::FileReloadFailure)?;
+            .map_err(|e| {
+                tracing::error!("Failed to create file appender: {}", e);
+                LogError::FileReloadFailure
+            })?;
+
             let (mut non_blocking_file, file_guard) = tracing_appender::non_blocking(file_appender);
 
             self.dump_to_file(&mut non_blocking_file);
